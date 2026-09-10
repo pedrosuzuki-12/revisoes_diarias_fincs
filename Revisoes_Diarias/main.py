@@ -230,7 +230,8 @@ def busca_historico_vortx(id_operacao, data_evento):
 
         df_pu = pd.DataFrame(dados["unitPrices"])
         if "paymentDate" in df_pu.columns:
-            df_pu["paymentDate"] = pd.to_datetime(df_pu["paymentDate"])
+            # Converte e remove o timezone para evitar erro de datas mistas (com e sem timezone)
+            df_pu["paymentDate"] = pd.to_datetime(df_pu["paymentDate"], format="mixed", utc=True).dt.tz_localize(None)
             
             # Filtra apenas eventos reais (ignora a marcação diária de PU sem pagamento/evento)
             mask_evento = (df_pu["total"] > 0) | (df_pu["amortization"] != 0)
