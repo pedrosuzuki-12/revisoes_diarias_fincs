@@ -1,4 +1,4 @@
 .venv/
 __pycache__/
 *.pyc
-tmp_arquivos/test_vortx*.py
+test_vortx*.py
