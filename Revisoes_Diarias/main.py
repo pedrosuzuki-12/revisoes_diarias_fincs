@@ -6,6 +6,9 @@ import shutil
 import logging
 import requests
 import pandas as pd
+import json
+import re
+import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
 from openpyxl import load_workbook
@@ -53,18 +56,53 @@ headers_ot = {
 
 
 def busca_id_oliveira(codigo_if):
-    url = "https://services-ft.oliveiratrust.com.br/app/v1/titulos?busca=" + codigo_if
+    url = f"https://www.oliveiratrust.com.br/investidor/ativos?busca={codigo_if}"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+    }
+    
     try:
-        resposta = requests.get(url, headers=headers_ot, timeout=10)
+        resposta = requests.get(url, headers=headers, timeout=10)
         resposta.raise_for_status()
-        dados = resposta.json()
-        lista_id = dados.get("data", [])
-        if not lista_id:
+        
+        # Encontra os dados do Nuxt dentro do HTML
+        match = re.search(r'id="__NUXT_DATA__"[^>]*>(\[.*\])</script>', resposta.text)
+        
+        if not match:
             return None
-        id = lista_id[0]
-        return id.get("tit"), id.get("titulo")
+            
+        dados_nuxt = json.loads(match.group(1))
+        
+        # O Nuxt armazena os dados num array.
+        #  itera para encontrar o dicionário que lista os ativos 
+        for item in dados_nuxt:
+            if isinstance(item, dict) and "collection" in item:
+                # O ID que referencia a lista de ativos
+                collection_idx = item["collection"]
+                
+                # A coleção tem a lista dos objetos retornados
+                lista_ativos = dados_nuxt[collection_idx]
+                
+                if not lista_ativos:
+                    return None
+                
+                # Pegamos o primeiro item da lista (referência ao objeto do ativo)
+                primeiro_ativo_idx = lista_ativos[0]
+                primeiro_ativo = dados_nuxt[primeiro_ativo_idx]
+                
+                #  extrai as referências do nome e do id ("tit")
+                if "tit" in primeiro_ativo:
+                    id_ot = dados_nuxt[primeiro_ativo["tit"]]
+                    nome_titulo = dados_nuxt[primeiro_ativo["name"]]
+                    
+                    return id_ot, nome_titulo
+                    
+        return None
+        
     except Exception as e:
-        logger.error(f"Erro na requisição OT: {e}")
+        logger.error(f"Erro ao extrair ID da página da OT: {e}")
         return None
 
 
