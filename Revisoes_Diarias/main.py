@@ -182,7 +182,7 @@ def checagem_oliveira(amort_ord_per, amex_per, incorp_per, vn, juros, pu, amort_
             incorp_real = 100.0
         elif juros_pgto > 0:
             incorp_real = (abs(amort_pgto) / juros_pgto) * 100
-    elif total_pgto <= 0 and juros_pgto > 0:
+    elif (total_pgto - amort_pgto) <= 0.01 and juros_pgto > 0:
         incorp_real = 100.0
 
     if math.isclose(amort_real, amort_esperada, abs_tol=TOLERANCIA):
@@ -318,7 +318,7 @@ def checagem_vortx(amort_ord_per, amex_per, juros_per, incorp_per, linha):
             incorp_real = 100.0
         elif juros_pago > 0:
             incorp_real = (abs(amort_paga) / juros_pago) * 100
-    elif total_pago <= 0 and juros_pago > 0:
+    elif (total_pago - amort_paga) <= 0.01 and juros_pago > 0:
         incorp_real = 100.0
 
     if math.isclose(amort_real, amort_esperada, abs_tol=TOLERANCIA):
@@ -361,6 +361,51 @@ def checagem_vortx(amort_ord_per, amex_per, juros_per, incorp_per, linha):
     return {"log_suscinto": log_suscinto}
 
 
+
+def processa_oliveira_trust(ws, linha_excel, codigo_if, data_evento, amort_ord_per, amex_per, juros_per, incorp_per):
+    res_id = busca_id_oliveira(codigo_if)
+    if not res_id:
+        return False
+
+    id_ot, _ = res_id
+    link_ot = f"https://www.oliveiratrust.com.br/investidor/ativos/historico-valores/{id_ot}"
+    ws[f"M{linha_excel}"].value = link_ot
+    ws[f"M{linha_excel}"].hyperlink = link_ot
+    ws[f"M{linha_excel}"].style = "Hyperlink"
+
+    dados_evento = busca_historico_oliveira(id_ot, data_evento)
+
+    if dados_evento is None:
+        ws[f"{COLUNA_RETORNO}{linha_excel}"] = "Nenhum evento encontrado na data"
+    else:
+        vn, juros, pu, amort_pgto, juros_pgto, premio_pgto, total_pgto = dados_evento
+        resultado = checagem_oliveira(
+            amort_ord_per, amex_per, incorp_per, vn, juros, pu,
+            amort_pgto, juros_pgto, premio_pgto, total_pgto, juros_per
+        )
+        ws[f"{COLUNA_RETORNO}{linha_excel}"] = resultado["log_suscinto"]
+    return True
+
+def processa_vortx(ws, linha_excel, codigo_if, data_evento, amort_ord_per, amex_per, juros_per, incorp_per):
+    id_vortx = busca_id_vortx(codigo_if)
+    if not id_vortx:
+        return False
+
+    link_vortx = f"https://www.vortx.com.br/investidor/dcm/operacao?id={id_vortx}"
+    ws[f"M{linha_excel}"].value = link_vortx
+    ws[f"M{linha_excel}"].hyperlink = link_vortx
+    ws[f"M{linha_excel}"].style = "Hyperlink"
+
+    dados_evento = busca_historico_vortx(id_vortx, data_evento)
+
+    if dados_evento is None:
+        ws[f"{COLUNA_RETORNO}{linha_excel}"] = "Nenhum evento encontrado na data"
+    else:
+        resultado = checagem_vortx(amort_ord_per, amex_per, juros_per, incorp_per, dados_evento)
+        ws[f"{COLUNA_RETORNO}{linha_excel}"] = resultado["log_suscinto"]
+    return True
+
+# ==========================================
 # ==========================================
 # PROCESSAMENTO 
 # ==========================================
@@ -385,49 +430,17 @@ def processar_arquivo(caminho_entrada: str, caminho_saida: str):
         logger.info(f"Linha {linha_excel}: Título {codigo_if} ({af})")
 
         if af == "OLIVEIRA TRUST DTVM S.A.":
-            res_id = busca_id_oliveira(codigo_if)
-            if not res_id:
+            if not processa_oliveira_trust(ws, linha_excel, codigo_if, data_evento, amort_ord_per, amex_per, juros_per, incorp_per):
                 ws[f"{COLUNA_RETORNO}{linha_excel}"] = "Título não encontrado na Oliveira Trust"
-                continue
-
-            id_ot, _ = res_id
-            link_ot = f"https://www.oliveiratrust.com.br/investidor/ativos/historico-valores/{id_ot}"
-            ws[f"M{linha_excel}"].value = link_ot
-            ws[f"M{linha_excel}"].hyperlink = link_ot
-            ws[f"M{linha_excel}"].style = "Hyperlink"
-
-            dados_evento = busca_historico_oliveira(id_ot, data_evento)
-
-            if dados_evento is None:
-                ws[f"{COLUNA_RETORNO}{linha_excel}"] = "Nenhum evento encontrado na data"
-            else:
-                vn, juros, pu, amort_pgto, juros_pgto, premio_pgto, total_pgto = dados_evento
-                resultado = checagem_oliveira(
-                    amort_ord_per, amex_per, incorp_per, vn, juros, pu,
-                    amort_pgto, juros_pgto, premio_pgto, total_pgto, juros_per
-                )
-                ws[f"{COLUNA_RETORNO}{linha_excel}"] = resultado["log_suscinto"]
 
         elif af == "VORTX DTVM LTDA.":
-            id_vortx = busca_id_vortx(codigo_if)
-            if not id_vortx:
+            if not processa_vortx(ws, linha_excel, codigo_if, data_evento, amort_ord_per, amex_per, juros_per, incorp_per):
                 ws[f"{COLUNA_RETORNO}{linha_excel}"] = "Título não encontrado na Vórtx"
-                continue
 
-            link_vortx = f"https://www.vortx.com.br/investidor/dcm/operacao?id={id_vortx}"
-            ws[f"M{linha_excel}"].value = link_vortx
-            ws[f"M{linha_excel}"].hyperlink = link_vortx
-            ws[f"M{linha_excel}"].style = "Hyperlink"
-
-            dados_evento = busca_historico_vortx(id_vortx, data_evento)
-
-            if dados_evento is None:
-                ws[f"{COLUNA_RETORNO}{linha_excel}"] = "Nenhum evento encontrado na data"
-            else:
-                resultado = checagem_vortx(amort_ord_per, amex_per, juros_per, incorp_per, dados_evento)
-                ws[f"{COLUNA_RETORNO}{linha_excel}"] = resultado["log_suscinto"]
         else:
-            ws[f"{COLUNA_RETORNO}{linha_excel}"] = f"AF não mapeado: {af}"
+            if not processa_oliveira_trust(ws, linha_excel, codigo_if, data_evento, amort_ord_per, amex_per, juros_per, incorp_per):
+                if not processa_vortx(ws, linha_excel, codigo_if, data_evento, amort_ord_per, amex_per, juros_per, incorp_per):
+                    ws[f"{COLUNA_RETORNO}{linha_excel}"] = f"AF não mapeado: {af}"
 
     wb.save(caminho_saida)
 
