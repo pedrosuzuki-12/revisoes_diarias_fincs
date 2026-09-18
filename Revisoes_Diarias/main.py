@@ -182,8 +182,10 @@ def checagem_oliveira(amort_ord_per, amex_per, incorp_per, vn, juros, pu, amort_
             incorp_real = 100.0
         elif juros_pgto > 0:
             incorp_real = (abs(amort_pgto) / juros_pgto) * 100
-    elif (total_pgto - amort_pgto) <= 1e-6 and juros_pgto > 0:
-        incorp_real = 100.0
+    else:
+        juros_incorp = juros - juros_pgto
+        if juros_incorp > 1e-6 and juros > 0:
+            incorp_real = (juros_incorp / juros) * 100.0
 
     if math.isclose(amort_real, amort_esperada, abs_tol=TOLERANCIA):
         amort_ord_real = esp_amort_ord
@@ -318,8 +320,11 @@ def checagem_vortx(amort_ord_per, amex_per, juros_per, incorp_per, linha):
             incorp_real = 100.0
         elif juros_pago > 0:
             incorp_real = (abs(amort_paga) / juros_pago) * 100
-    elif (total_pago - amort_paga) <= 1e-6 and juros_pago > 0:
-        incorp_real = 100.0
+    else:
+        juros_pagos_reais = total_pago - amort_paga
+        juros_incorp = juros_pago - juros_pagos_reais
+        if juros_incorp > 1e-6 and juros_pago > 0:
+            incorp_real = (juros_incorp / juros_pago) * 100.0
 
     if math.isclose(amort_real, amort_esperada, abs_tol=TOLERANCIA):
         amort_ord_real = esp_amort_ord
